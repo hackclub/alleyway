@@ -43,6 +43,7 @@ Create at least 3 to get flown to Supercon, a hacker festival on the weekend of 
     -   Features
     -   Parts needed
 -   You have a BOM with links in CSV format.
+-   You have a schematic with all the parts connected
 -   If you have a previous project from this event, it must be at least electrically & mechanically functional before getting another grant.
 
 ### to go to supercon:

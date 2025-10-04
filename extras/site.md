@@ -13,4 +13,4 @@ backend:
 -   express
 -   airtable
 
-time to figure out if we are fraudulnet or if we can actually make a real website lol
+time to figure out if we are fraudulent or if we can actually make a real website lol
