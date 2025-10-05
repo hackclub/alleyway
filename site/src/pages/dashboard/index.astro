@@ -15,6 +15,7 @@ let slackAccount: any = null;
 let githubAccount: any = null;
 let slackAccessToken: any | null = null;
 let githubAccessToken: any | null = null;
+let jwtToken: string | null = null;
 
 let projects: any[] | null = null;
 
@@ -31,6 +32,24 @@ try {
         // no user signed in; don't call account APIs
         console.log("No user logged in");
     } else {
+        console.log("Better Auth API endpoints:")
+        console.log(Object.keys(auth.api));
+
+        const { token: string } = await auth.api.getToken({
+            headers: Astro.request.headers,
+        });
+
+        jwtToken = string;
+        console.log("Got JWT token", jwtToken);
+
+        const res = await fetch("http://localhost:3000/protected", {
+            headers: {
+                Authorization: `Bearer ${jwtToken}`,
+            },
+        });
+        const data = await res.json();
+        console.log("Protected response:", data);
+
         // pull account details, we know these must exist
 
         accounts = await auth.api.listUserAccounts({

@@ -13,6 +13,7 @@
     "packageManager": "pnpm@10.12.1",
     "dependencies": {
         "airtable": "^0.12.2",
+        "cors": "^2.8.5",
         "dotenv": "^17.2.2",
         "express": "^5.1.0",
         "jose": "^6.1.0",

@@ -1,10 +1,20 @@
 import express from "express";
 import Airtable from "airtable";
 import { jwtVerify, createRemoteJWKSet } from "jose";
+import cors from "cors";
 
+// TODO: tunnel astro here so that it's merged with the backend
 const app = express();
+app.use(
+    cors({
+        origin: [
+            "http://localhost:4321",
+            "https://cd487188fc7d.ngrok-free.app",
+        ],
+    })
+);
 const PORT = process.env.PORT || 3000;
-const baseUrl = "https://cd487188fc7d.ngrok-free.app/";
+const baseUrl = "https://cd487188fc7d.ngrok-free.app";
 
 // URL to your auth server's JWKS endpoint
 const JWKS_URL = baseUrl + "/api/auth/jwks";
@@ -24,6 +34,7 @@ async function verifyJwt(token) {
             issuer: baseUrl, // must match Better Auth baseUrl
             audience: baseUrl, // default audience is baseUrl unless overridden in plugin options :contentReference[oaicite:4]{index=4}
         });
+        console.log("JWT payload:", payload);
         return payload; // contains user info (id, email etc) by default unless you customize with definePayload :contentReference[oaicite:5]{index=5}
     } catch (err) {
         console.error("JWT validation failed:", err);
@@ -31,7 +42,11 @@ async function verifyJwt(token) {
     }
 }
 
-app.use(async (req, res, next) => {
+app.get("/protected", checkLogin, (req, res) => {
+    res.json({ message: "you are authenticated", user: req.user });
+});
+
+async function checkLogin(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
         return res.status(401).json({ error: "Unauthorized" });
@@ -47,14 +62,8 @@ app.use(async (req, res, next) => {
         // etc
     };
     next();
-});
-
-app.get("/protected", (req, res) => {
-    res.json({ message: "you are authenticated", user: req.user });
-});
+}
 
 // TODO: add astro middleware routing stuff here
 
 // Also add routes for user info
-
-app.listen(PORT, () => console.log(`External API listening on port ${PORT}`));

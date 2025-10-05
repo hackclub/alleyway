@@ -11,9 +11,13 @@ export default defineConfig({
         plugins: [tailwindcss()],
     },
     adapter: node({
-        mode: "middleware",
+        mode: "standalone",
     }),
     server: {
-        allowedHosts: ["localhost", "cd487188fc7d.ngrok-free.app"],
+        allowedHosts: [
+            "localhost",
+            "cd487188fc7d.ngrok-free.app",
+            "alley.hackclub.com",
+        ],
     },
 });
