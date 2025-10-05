@@ -1,0 +1,144 @@
+---
+import Base from "../../layouts/Base.astro";
+import { auth } from "@auth"; // import your Better Auth instance
+
+export const prerender = false;
+
+let session = null;
+let userId: string | null = null;
+let slackInfo: any = null;
+let githubInfo: any = null;
+let accounts: any[] | null = null;
+let errorMsg: string | null = null;
+
+let slackAccount: any = null;
+let githubAccount: any = null;
+let slackAccessToken: any | null = null;
+let githubAccessToken: any | null = null;
+
+let projects: any[] | null = null;
+
+try {
+    session = await auth.api.getSession({
+        headers: Astro.request?.headers ?? new Headers(),
+    });
+
+    console.log(session);
+
+    userId = session?.session?.userId ?? null;
+
+    if (!userId) {
+        // no user signed in; don't call account APIs
+        console.log("No user logged in");
+    } else {
+        // pull account details, we know these must exist
+
+        accounts = await auth.api.listUserAccounts({
+            headers: Astro.request.headers,
+        });
+
+        console.log("Loaded accounts", accounts);
+        slackAccount = accounts.find((acc: any) => acc.providerId === "slack");
+        githubAccount = accounts.find(
+            (acc: any) => acc.providerId === "github"
+        );
+
+        slackAccessToken = (
+            await auth.api.getAccessToken({
+                headers: Astro.request.headers,
+                body: { providerId: "slack", accountId: slackAccount.id },
+            })
+        ).accessToken;
+
+        slackInfo = await auth.api.accountInfo({
+            headers: Astro.request.headers,
+            body: { accountId: slackAccount.accountId },
+        });
+
+        if (!githubAccount) {
+            console.log("No GitHub account linked");
+        } else {
+            githubInfo = await auth.api.accountInfo({
+                headers: Astro.request.headers,
+                body: { accountId: githubAccount.accountId },
+            });
+            githubAccessToken = (
+                await auth.api.getAccessToken({
+                    headers: Astro.request.headers,
+                    body: { providerId: "github", accountId: githubAccount.id },
+                })
+            ).accessToken;
+        }
+        console.log("Slack info", slackInfo);
+    }
+} catch (e) {
+    console.error("getSession failed", e);
+    errorMsg = "Failed to get session";
+}
+
+/* list of data we actually need to display from oauth providers:
+
+slack:
+- display name
+- profile picture
+
+github:
+- username
+- repositories
+
+list of stuff from airtable:
+- project statuses
+- account statuses
+
+Extracted the account access tokens, the rest should just be a simple API call
+
+still need to figure out how to do that fuck ass JWT handshake, but it shouldn't be too hard to figure out.
+
+*/
+---
+
+<!-- TODO: dynamically edit website depending on session states -->
+<Base>
+
+    {
+        session ? (
+            <div>
+                <p>{JSON.stringify(session)}</p>
+                <p>slack info {JSON.stringify(slackInfo)}</p>
+                {githubInfo && <p>github info {JSON.stringify(githubInfo)}</p>}
+            </div>
+                <button id="logout">Logout</button>
+                <button id="link-github">Link GitHub</button>
+                <button id="unlink-github">Unlink GitHub</button>
+        ) : (
+        <div>
+            <p> sign in to view this!</p>
+        </div>)
+    }
+</Base>
+
+<script>
+    const { authClient } = await import("../../lib/auth-client");
+    (document.querySelector("#logout") as HTMLElement).onclick = () =>
+        authClient.signOut({
+            fetchOptions: {
+                onSuccess: () => {
+                    window.location.href = "/";
+                },
+            },
+        });
+    (document.querySelector("#link-github") as HTMLElement).onclick = () =>
+        authClient.linkSocial({
+            provider: "github",
+            callbackURL: "/dashboard",
+        });
+    (document.querySelector("#unlink-github") as HTMLElement).onclick = () =>
+        authClient.unlinkAccount({
+            providerId: "github",
+            fetchOptions: {
+                onSuccess: () => {
+                    window.location.reload();
+                },
+            },
+        });
+</script>

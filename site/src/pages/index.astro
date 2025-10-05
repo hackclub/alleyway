@@ -1,80 +1,10 @@
 ---
 import Base from "../layouts/Base.astro";
-import { auth } from "../auth"; // import your Better Auth instance
 
 export const prerender = false;
-
-let session = null;
-let userId: string | null = null;
-let slackInfo: any = null;
-let githubInfo: any = null;
-let accounts: any[] | null = null;
-let errorMsg: string | null = null;
-
-let slackAccount: any = null;
-let githubAccount: any = null;
-
-try {
-    session = await auth.api.getSession({
-        headers: Astro.request?.headers ?? new Headers(),
-    });
-
-    userId = session?.session?.userId ?? null;
-
-    if (!userId) {
-        // no user signed in; don't call account APIs
-        console.log("No user logged in");
-    } else {
-        accounts = await auth.api.listUserAccounts({
-            headers: Astro.request.headers,
-        });
-        console.log("Loaded accounts", accounts);
-        slackAccount = accounts.find((acc: any) => acc.providerId === "slack");
-        githubAccount = accounts.find(
-            (acc: any) => acc.providerId === "github"
-        );
-        slackInfo = await auth.api.accountInfo({
-            headers: Astro.request.headers,
-            body: { accountId: slackAccount.accountId },
-        });
-        try {
-            githubInfo = await auth.api.accountInfo({
-                headers: Astro.request.headers,
-                body: { accountId: githubAccount.accountId },
-            });
-        } catch (e) {
-            console.error("accountInfo failed", e);
-            errorMsg = "Failed to load account info";
-        }
-    }
-} catch (e) {
-    console.error("getSession failed", e);
-    errorMsg = "Failed to get session";
-}
 ---
 
 <Base>
-    <button id="login">Login</button>
-    <button id="logout">Logout</button>
-    <p>{JSON.stringify(session)}</p>
-    <p>slack info {JSON.stringify(slackInfo)}</p>
-    <p>github info {JSON.stringify(githubInfo)}</p>
-    <button id="link-github">Link GitHub</button>
+    <h1>Welcome to The Alley</h1>
+    <p>This is the home page.</p>
 </Base>
-
-<script>
-    const { authClient } = await import("../lib/auth-client");
-    (document.querySelector("#login") as HTMLElement).onclick = () =>
-        authClient.signIn.social({
-            provider: "slack",
-            callbackURL: "/",
-            scopes: ["email"],
-        });
-    (document.querySelector("#logout") as HTMLElement).onclick = () =>
-        authClient.signOut();
-    (document.querySelector("#link-github") as HTMLElement).onclick = () =>
-        authClient.linkSocial({
-            provider: "github",
-            callbackURL: "/",
-        });
-</script>

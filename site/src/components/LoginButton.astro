@@ -1,0 +1,14 @@
+---
+
+---
+
+<button id="login">Login</button>
+<script>
+    const { authClient } = await import("@lib/auth-client");
+    (document.querySelector("#login") as HTMLElement).onclick = () =>
+        authClient.signIn.social({
+            provider: "slack",
+            callbackURL: "/dashboard",
+            scopes: ["email"],
+        });
+</script>

@@ -1,4 +1,5 @@
 import express from "express";
+import Airtable from "airtable";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 
 const app = express();
@@ -56,4 +57,4 @@ app.get("/protected", (req, res) => {
 
 // Also add routes for user info
 
-app.listen(4000, () => console.log("External API listening on port 4000"));
+app.listen(PORT, () => console.log(`External API listening on port ${PORT}`));

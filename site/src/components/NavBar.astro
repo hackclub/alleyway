@@ -1,0 +1,16 @@
+---
+import { auth } from "@auth";
+import LoginButton from "./LoginButton.astro";
+export const prerender = false;
+
+const session = await auth.api.getSession({ headers: Astro.request.headers });
+---
+
+<div>
+    <p>NavBar</p>
+</div>
+<div>
+    <a href="/">Home</a>
+    {session ? <a href="/dashboard">Dashboard</a> : <LoginButton />}
+    <a href="/docs">Docs</a>
+</div>
