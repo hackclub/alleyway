@@ -5,6 +5,14 @@ WORKDIR /app
 # Install pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# Install native build toolchain for Node addons (needed for better-sqlite3 when prebuilds aren't used)
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends python3 make g++ \
+	&& rm -rf /var/lib/apt/lists/*
+
+# Ensure node-gyp uses python3
+ENV npm_config_python=python3
+
 # Copy package manifests and lockfile first for better caching
 COPY package.json pnpm-lock.yaml ./
 COPY tsconfig.json ./
