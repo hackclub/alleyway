@@ -47,5 +47,5 @@ ENV PORT=3000
 # Expose port
 EXPOSE 3000
 
-# Run database migration and start the application
-CMD npx @better-auth/cli migrate && node ./dist/server/entry.mjs
+# Run database migration in non-interactive mode and start the application
+CMD npx @better-auth/cli migrate --yes && node ./dist/server/entry.mjs
