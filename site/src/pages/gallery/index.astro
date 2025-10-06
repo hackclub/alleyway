@@ -6,7 +6,9 @@ export const prerender = false;
 // Fetch projects dynamically
 const projects = await fetch(
     "https://alley.a.selfhosted.hackclub.com/api/projects"
-).then((res) => res.json());
+)
+    .then((res) => res.json())
+    .catch(() => []);
 ---
 
 <Base>
@@ -108,4 +110,4 @@ const projects = await fetch(
             )
         }
     </section>
-</Base>
+</Base>; ---
