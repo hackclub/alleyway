@@ -32,7 +32,7 @@ try {
         // no user signed in; don't call account APIs
         console.log("No user logged in");
     } else {
-        console.log("Better Auth API endpoints:")
+        console.log("Better Auth API endpoints:");
         console.log(Object.keys(auth.api));
 
         const { token: string } = await auth.api.getToken({
@@ -42,14 +42,6 @@ try {
         jwtToken = string;
         console.log("Got JWT token", jwtToken);
 
-        const res = await fetch("http://localhost:3000/protected", {
-            headers: {
-                Authorization: `Bearer ${jwtToken}`,
-            },
-        });
-        const data = await res.json();
-        console.log("Protected response:", data);
-
         // pull account details, we know these must exist
 
         accounts = await auth.api.listUserAccounts({
@@ -57,10 +49,12 @@ try {
         });
 
         console.log("Loaded accounts", accounts);
-        slackAccount = accounts.find((acc: any) => acc.providerId === "slack");
-        githubAccount = accounts.find(
-            (acc: any) => acc.providerId === "github"
-        );
+        slackAccount = accounts
+            ? accounts.find((acc: any) => acc.providerId === "slack")
+            : null;
+        githubAccount = accounts
+            ? accounts.find((acc: any) => acc.providerId === "github")
+            : null;
 
         slackAccessToken = (
             await auth.api.getAccessToken({
@@ -89,6 +83,13 @@ try {
             ).accessToken;
         }
         console.log("Slack info", slackInfo);
+        const res = await fetch("http://localhost:3000/api/account/info", {
+            headers: {
+                Authorization: `Bearer ${jwtToken}`,
+            },
+        });
+        const data = await res.json();
+        console.log("Protected response:", data);
     }
 } catch (e) {
     console.error("getSession failed", e);
@@ -118,46 +119,99 @@ still need to figure out how to do that fuck ass JWT handshake, but it shouldn't
 
 <!-- TODO: dynamically edit website depending on session states -->
 <Base>
-
     {
-        session ? (
-            <div>
-                <p>{JSON.stringify(session)}</p>
-                <p>slack info {JSON.stringify(slackInfo)}</p>
-                {githubInfo && <p>github info {JSON.stringify(githubInfo)}</p>}
+        errorMsg ? (
+            <div class="text-red-500 text-center mt-10">{errorMsg}</div>
+        ) : session && userId ? (
+            <div class="max-w-2xl mx-auto mt-10 p-6 bg-white/10 backdrop-blur rounded-2xl shadow-lg text-center text-white">
+                <h1 class="text-2xl font-bold mb-6">Dashboard</h1>
+
+                <div class="flex flex-col items-center gap-6">
+                    {slackInfo && (
+                        <div class="flex flex-col items-center">
+                            <img
+                                src={
+                                    slackInfo?.user?.image ||
+                                    "/default-avatar.png"
+                                }
+                                alt="Slack Profile"
+                                class="w-24 h-24 rounded-full border-4 border-white shadow"
+                            />
+                            <p class="mt-2 text-lg font-semibold">
+                                {slackInfo?.user?.real_name ||
+                                    "Unknown Slack User"}
+                            </p>
+                            <p class="text-sm text-gray-300">
+                                @{slackInfo?.user?.name}
+                            </p>
+                        </div>
+                    )}
+
+                    {githubInfo && (
+                        <div class="flex flex-col items-center">
+                            <p class="text-lg font-semibold">
+                                GitHub: @{githubInfo?.user?.login ?? "Unknown"}
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <div class="flex justify-center gap-4 mt-8">
+                    <button
+                        id="logout"
+                        class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-medium"
+                    >
+                        Logout
+                    </button>
+                    {!githubAccount ? (
+                        <button
+                            id="link-github"
+                            class="bg-gray-700 hover:bg-gray-800 px-4 py-2 rounded-lg font-medium"
+                        >
+                            Link GitHub
+                        </button>
+                    ) : (
+                        <button
+                            id="unlink-github"
+                            class="bg-gray-700 hover:bg-gray-800 px-4 py-2 rounded-lg font-medium"
+                        >
+                            Unlink GitHub
+                        </button>
+                    )}
+                </div>
             </div>
-                <button id="logout">Logout</button>
-                <button id="link-github">Link GitHub</button>
-                <button id="unlink-github">Unlink GitHub</button>
         ) : (
-        <div>
-            <p> sign in to view this!</p>
-        </div>)
+            <div class="text-center mt-20 text-gray-300">
+                <p>Please sign in to view your dashboard.</p>
+            </div>
+        )
     }
 </Base>
 
 <script>
     const { authClient } = await import("../../lib/auth-client");
-    (document.querySelector("#logout") as HTMLElement).onclick = () =>
+
+    document.querySelector("#logout")?.addEventListener("click", () => {
         authClient.signOut({
             fetchOptions: {
-                onSuccess: () => {
-                    window.location.href = "/";
-                },
+                onSuccess: () => (window.location.href = "/"),
             },
         });
-    (document.querySelector("#link-github") as HTMLElement).onclick = () =>
+    });
+
+    document.querySelector("#link-github")?.addEventListener("click", () => {
         authClient.linkSocial({
             provider: "github",
             callbackURL: "/dashboard",
         });
-    (document.querySelector("#unlink-github") as HTMLElement).onclick = () =>
+    });
+
+    document.querySelector("#unlink-github")?.addEventListener("click", () => {
         authClient.unlinkAccount({
             providerId: "github",
             fetchOptions: {
-                onSuccess: () => {
-                    window.location.reload();
-                },
+                onSuccess: () => window.location.reload(),
             },
         });
+    });
 </script>

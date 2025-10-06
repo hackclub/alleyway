@@ -7,3 +7,7 @@ I am really bad at coding. This will be my first time actually shipping a web ap
 -   https://github.com/better-auth/better-auth/blob/main/packages/better-auth/src/api/routes/account.ts - endpoints lmfao
 
 I HATE BETTER AUTH DOCS HAHAHAHAHAHA
+
+## Notes:
+
+-   the BaseURLs are only referenced in astro.config.mjs and auth.ts for frontend, no need to dig everywhere

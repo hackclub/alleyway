@@ -27,6 +27,7 @@ export const auth = betterAuth({
     debug: true,
     trustedOrigins: [
         "http://localhost:4321",
-        "https://cd487188fc7d.ngrok-free.app",
+        import.meta.env.PUBLIC_PROD_URL as string,
+        (import.meta.env.PUBLIC_BETTER_AUTH_URL as string) || "",
     ],
 });

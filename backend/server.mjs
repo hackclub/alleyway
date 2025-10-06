@@ -2,30 +2,54 @@ import express from "express";
 import Airtable from "airtable";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 import cors from "cors";
+import dotenv from "dotenv";
 
-// TODO: tunnel astro here so that it's merged with the backend
+dotenv.config();
 const app = express();
-app.use(
-    cors({
-        origin: [
-            "http://localhost:4321",
-            "https://cd487188fc7d.ngrok-free.app",
-        ],
-    })
-);
-const PORT = process.env.PORT || 3000;
-const baseUrl = "https://cd487188fc7d.ngrok-free.app";
 
-// URL to your auth server's JWKS endpoint
-const JWKS_URL = baseUrl + "/api/auth/jwks";
+// Configuration from environment with sensible defaults
+const PORT = process.env.PORT || 3000;
+const DEFAULT_BASE = `http://localhost:${process.env.DEV_PORT || 4321}`;
+const baseUrl =
+    process.env.DEV_BASE_URL || process.env.BASE_URL || DEFAULT_BASE;
+
+app.use(cors());
+
+// URL to your auth server's JWKS endpoint (derived from baseUrl unless overridden)
+const JWKS_URL =
+    process.env.JWKS_URL || `${baseUrl.replace(/\/$/, "")}/api/auth/jwks`;
 const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
 
 app.get("/", (req, res) => {
-    res.send("Hello, World!");
+    res.send(
+        "Alleyway backend. You're probably looking for alley.hackclub.com :)"
+    );
+});
+
+app.get("/protected", checkLogin, (req, res) => {
+    res.json({ message: "you are authenticated", user: req.user });
+});
+
+app.post("/api/account/create", checkLogin, (req, res) => {
+    res.json({ message: "you are authenticated", user: req.user });
+});
+
+app.get("/api/account/info", checkLogin, (req, res) => {
+    res.json({ message: "you are authenticated", user: req.user });
+});
+
+app.post("/api/account/update", checkLogin, (req, res) => {
+    res.json({ message: "you are authenticated", user: req.user });
+});
+
+app.get("/api/projects", (req, res) => {
+    res.json({ message: "you are authenticated", user: req.user });
 });
 
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Using BASE_URL=${baseUrl}`);
+    console.log(`JWKS_URL=${JWKS_URL}`);
 });
 
 async function verifyJwt(token) {
@@ -42,10 +66,6 @@ async function verifyJwt(token) {
     }
 }
 
-app.get("/protected", checkLogin, (req, res) => {
-    res.json({ message: "you are authenticated", user: req.user });
-});
-
 async function checkLogin(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -57,7 +77,7 @@ async function checkLogin(req, res, next) {
 
     // attach user info to request
     req.user = {
-        id: payload.sub || payload.id, // depending on what definePayload or default includes :contentReference[oaicite:6]{index=6}
+        id: payload.sub || payload.id, // depending on what definePayload or default includes
         email: payload.email,
         // etc
     };
