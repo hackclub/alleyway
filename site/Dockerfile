@@ -47,4 +47,4 @@ ENV PORT=3000
 EXPOSE 3000
 
 # Run database migration and start the application
-CMD npx @better-auth/cli migrate && node ./dist/server/entry.mjs
+CMD npx @better-auth/cli migrate && node ./dist/server/entry.mjs --config src/auth.ts
