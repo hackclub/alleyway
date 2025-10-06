@@ -37,6 +37,7 @@ WORKDIR /app
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/src/auth.ts ./src/auth.ts
 
 # Set production environment
 ENV NODE_ENV=production
@@ -47,4 +48,4 @@ ENV PORT=3000
 EXPOSE 3000
 
 # Run database migration and start the application
-CMD npx @better-auth/cli migrate && node ./dist/server/entry.mjs --config src/auth.ts
+CMD npx @better-auth/cli migrate && node ./dist/server/entry.mjs
