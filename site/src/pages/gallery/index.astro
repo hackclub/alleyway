@@ -4,9 +4,9 @@ import Base from "@layouts/Base.astro";
 export const prerender = false;
 
 // Fetch projects dynamically
-const projects = await fetch("http://localhost:3000/api/projects").then((res) =>
-    res.json()
-);
+const projects = await fetch(
+    "https://alley.a.selfhosted.hackclub.com/api/projects"
+).then((res) => res.json());
 ---
 
 <Base>

@@ -80,9 +80,12 @@ try {
     console.log("Got JWT token", jwtToken);
 
     // 6. Use JWT to call airtable
-    const apiRes = await fetch("http://localhost:3000/api/account/info", {
-        headers: { Authorization: `Bearer ${jwtToken}` },
-    });
+    const apiRes = await fetch(
+        "https://alley.a.selfhosted.hackclub.com/api/account/info",
+        {
+            headers: { Authorization: `Bearer ${jwtToken}` },
+        }
+    );
 } catch (err) {
     console.error("Dashboard load failed:", err);
     errorMsg = err.message || "Unknown error loading dashboard";
