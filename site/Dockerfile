@@ -1,50 +1,50 @@
-### Builder stage: install deps and build the Astro site
-FROM node:20-bookworm-slim AS build
+# Specify target platform
+FROM --platform=linux/amd64 node:24-alpine AS base
+
+# Install dependencies needed for better-sqlite3
+RUN apk add --no-cache python3 make g++ sqlite
+
+# Set working directory
 WORKDIR /app
 
 # Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
 
-# Install native build toolchain for Node addons (needed for better-sqlite3 when prebuilds aren't used)
-RUN apt-get update \
-	&& apt-get install -y --no-install-recommends python3 make g++ \
-	&& rm -rf /var/lib/apt/lists/*
-
-# Ensure node-gyp uses python3
-ENV npm_config_python=python3
-
-# Copy package manifests and lockfile first for better caching
-COPY package.json pnpm-lock.yaml ./
-COPY tsconfig.json ./
-
-# Install dependencies (prebuilt native binaries are available on Debian-based images)
+# Copy package files
+FROM base AS deps
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* ./
 RUN pnpm install --frozen-lockfile
 
-# Copy rest of the source and build
+# Build stage
+FROM base AS build
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm build
 
+# Build the Astro site
+RUN pnpm run build
 
-### Production stage: run the built site
-FROM node:20-bookworm-slim AS runtime
+# Production stage
+FROM --platform=linux/amd64 node:24-alpine AS runner
+
+# Install runtime dependencies for better-sqlite3
+RUN apk add --no-cache sqlite
+
 WORKDIR /app
 
-# Create a non-root user
-RUN useradd -m -u 10001 app
-
-# Copy minimal runtime files from build stage
+# Copy built application
 COPY --from=build /app/dist ./dist
-COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./package.json
 
-# Copy the sqlite DB path parent (if any migrations or seeds exist you can add them)
-# Ensure the sqlite file exists so better-auth can open it
-RUN mkdir -p /app && touch /app/sqlite.db && chown app:app /app/sqlite.db
-
-USER app
-
+# Set production environment
 ENV NODE_ENV=production
+ENV HOST=0.0.0.0
+ENV PORT=3000
+
+# Expose port
 EXPOSE 3000
 
-# Start the Astro built server. Adjust if you use a different start command.
-CMD ["node", "./dist/server/entry.mjs"]
+# Run database migration and start the application
+CMD npx @better-auth/cli migrate && node ./dist/server/entry.mjs

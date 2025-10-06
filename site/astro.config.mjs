@@ -15,6 +15,11 @@ export default defineConfig({
     integrations: [mdx()],
     vite: {
         plugins: [tailwindcss()],
+        build: {
+            // rollupOptions: {
+            //     external: ["better-sqlite3"],
+            // },
+        },
     },
     adapter: node({
         mode: "standalone",

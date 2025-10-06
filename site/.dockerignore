@@ -1,0 +1,39 @@
+# Dependencies (will be installed in container)
+node_modules
+.pnpm-store
+
+# Build output (will be built in container)
+dist
+.output
+.astro
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Development files
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# SQLite database (will be created in container)
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.vscode
+.idea
+
+# Docker
+Dockerfile
+.dockerignore
