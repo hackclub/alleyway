@@ -1,5 +1,5 @@
 ### Builder stage: install deps and build the Astro site
-FROM node:20-alpine AS build
+FROM node:20-bookworm-slim AS build
 WORKDIR /app
 
 # Install pnpm
@@ -9,8 +9,8 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 COPY package.json pnpm-lock.yaml ./
 COPY tsconfig.json ./
 
-# Install dependencies
-RUN pnpm install --frozen-lockfile --offline || pnpm install --frozen-lockfile
+# Install dependencies (prebuilt native binaries are available on Debian-based images)
+RUN pnpm install --frozen-lockfile
 
 # Copy rest of the source and build
 COPY . .
@@ -18,11 +18,11 @@ RUN pnpm build
 
 
 ### Production stage: run the built site
-FROM node:20-alpine AS runtime
+FROM node:20-bookworm-slim AS runtime
 WORKDIR /app
 
 # Create a non-root user
-RUN addgroup -S app && adduser -S app -G app
+RUN useradd -m -u 10001 app
 
 # Copy minimal runtime files from build stage
 COPY --from=build /app/dist ./dist
