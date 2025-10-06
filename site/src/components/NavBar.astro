@@ -13,4 +13,5 @@ const session = await auth.api.getSession({ headers: Astro.request.headers });
     <a href="/">Home</a>
     {session ? <a href="/dashboard">Dashboard</a> : <LoginButton />}
     <a href="/docs">Docs</a>
+    <a href="/gallery">Gallery</a>
 </div>

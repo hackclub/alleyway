@@ -1,0 +1,111 @@
+---
+import Base from "@layouts/Base.astro";
+
+export const prerender = false;
+
+// Fetch projects dynamically
+const projects = await fetch("http://localhost:3000/api/projects").then((res) =>
+    res.json()
+);
+---
+
+<Base>
+    <section class="max-w-6xl mx-auto px-6 py-12">
+        <h1 class="text-4xl font-bold mb-4 text-gray-900 dark:text-gray-100">
+            Gallery
+        </h1>
+        <p class="text-gray-600 dark:text-gray-400 mb-10">
+            Explore all submitted projects.
+        </p>
+
+        {
+            projects && projects.length > 0 ? (
+                <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {projects.map((project, index) => {
+                        const repoBase = project.github_url?.replace(/\/$/, ""); // remove trailing slash
+                        const imageUrl = repoBase
+                            ? `${repoBase}/raw/main/CONCEPT.png`
+                            : null;
+
+                        return (
+                            <div
+                                key={project.id || index}
+                                class="group bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col"
+                            >
+                                <div class="aspect-video bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                                    {imageUrl ? (
+                                        <img
+                                            src={imageUrl}
+                                            alt="Missing image"
+                                            class="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
+                                            loading="lazy"
+                                            onError={(e) => {
+                                                e.target.style.display = "none";
+                                                e.target.parentElement.classList.add(
+                                                    "bg-gray-200",
+                                                    "dark:bg-gray-700"
+                                                );
+                                            }}
+                                        />
+                                    ) : (
+                                        <div class="w-full h-full bg-gray-200 dark:bg-gray-700" />
+                                    )}
+                                </div>
+
+                                <div class="p-6 flex-1 flex flex-col">
+                                    <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                                        {project.name ||
+                                            project.github_url?.split("/")[4] ||
+                                            "Untitled Project"}
+                                    </h2>
+
+                                    <p class="text-gray-600 dark:text-gray-400 line-clamp-4 mb-4 flex-1">
+                                        {project.Description ||
+                                            "No description provided."}
+                                    </p>
+
+                                    <div class="flex flex-wrap gap-3 text-sm mb-4">
+                                        {project.github_url && (
+                                            <a
+                                                href={project.github_url}
+                                                target="_blank"
+                                                class="inline-flex items-center text-blue-600 dark:text-blue-400 hover:underline"
+                                            >
+                                                GitHub Repo →
+                                            </a>
+                                        )}
+                                        {project.slack_message_url && (
+                                            <a
+                                                href={project.slack_message_url}
+                                                target="_blank"
+                                                class="inline-flex items-center text-pink-600 dark:text-pink-400 hover:underline"
+                                            >
+                                                Slack Thread →
+                                            </a>
+                                        )}
+                                    </div>
+
+                                    <span
+                                        class={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                                            project.status === "Approved"
+                                                ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"
+                                                : project.status === "Pending"
+                                                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300"
+                                                  : "bg-gray-100 text-gray-700 dark:bg-gray-900/40 dark:text-gray-300"
+                                        }`}
+                                    >
+                                        {project.status || "Unknown"}
+                                    </span>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                <p class="text-gray-500 dark:text-gray-400 text-center mt-10">
+                    No projects found.
+                </p>
+            )
+        }
+    </section>
+</Base>

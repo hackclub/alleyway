@@ -20,14 +20,15 @@ const JWKS_URL =
     process.env.JWKS_URL || `${baseUrl.replace(/\/$/, "")}/api/auth/jwks`;
 const JWKS = createRemoteJWKSet(new URL(JWKS_URL));
 
+const airtable = new Airtable({ apiKey: process.env.AIRTABLE_API_KEY });
+const base = airtable.base(process.env.AIRTABLE_BASE_ID);
+
+// Simple test route
+
 app.get("/", (req, res) => {
     res.send(
         "Alleyway backend. You're probably looking for alley.hackclub.com :)"
     );
-});
-
-app.get("/protected", checkLogin, (req, res) => {
-    res.json({ message: "you are authenticated", user: req.user });
 });
 
 app.post("/api/account/create", checkLogin, (req, res) => {
@@ -43,7 +44,18 @@ app.post("/api/account/update", checkLogin, (req, res) => {
 });
 
 app.get("/api/projects", (req, res) => {
-    res.json({ message: "you are authenticated", user: req.user });
+    base("Projects")
+        .select({ view: "real_projects" })
+        .firstPage((err, records) => {
+            if (err) {
+                console.error(err);
+                return res
+                    .status(500)
+                    .json({ error: "Failed to fetch projects" });
+            }
+            const projects = records.map((record) => record.fields);
+            res.json(projects);
+        });
 });
 
 app.listen(PORT, () => {

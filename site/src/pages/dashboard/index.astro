@@ -1,188 +1,180 @@
 ---
 import Base from "../../layouts/Base.astro";
-import { auth } from "@auth"; // import your Better Auth instance
+import { auth } from "@auth";
 
 export const prerender = false;
 
 let session = null;
-let userId: string | null = null;
-let slackInfo: any = null;
-let githubInfo: any = null;
-let accounts: any[] | null = null;
-let errorMsg: string | null = null;
-
-let slackAccount: any = null;
-let githubAccount: any = null;
-let slackAccessToken: any | null = null;
-let githubAccessToken: any | null = null;
-let jwtToken: string | null = null;
-
-let projects: any[] | null = null;
+let slackProfile = null;
+let githubProfile = null;
+let errorMsg = null;
+let jwtToken = null;
 
 try {
-    session = await auth.api.getSession({
-        headers: Astro.request?.headers ?? new Headers(),
-    });
-
-    console.log(session);
-
-    userId = session?.session?.userId ?? null;
+    // 1. Get user session
+    session = await auth.api.getSession({ headers: Astro.request.headers });
+    const userId = session?.session?.userId;
 
     if (!userId) {
-        // no user signed in; don't call account APIs
-        console.log("No user logged in");
-    } else {
-        console.log("Better Auth API endpoints:");
-        console.log(Object.keys(auth.api));
+        throw new Error("No active session");
+    }
 
-        const { token: string } = await auth.api.getToken({
-            headers: Astro.request.headers,
-        });
+    // 2. List connected accounts
+    const accounts = await auth.api.listUserAccounts({
+        headers: Astro.request.headers,
+    });
 
-        jwtToken = string;
-        console.log("Got JWT token", jwtToken);
+    // Find Slack & GitHub accounts
+    const slackAccount = accounts.find((a) => a.providerId === "slack");
+    const githubAccount = accounts.find((a) => a.providerId === "github");
 
-        // pull account details, we know these must exist
-
-        accounts = await auth.api.listUserAccounts({
-            headers: Astro.request.headers,
-        });
-
-        console.log("Loaded accounts", accounts);
-        slackAccount = accounts
-            ? accounts.find((acc: any) => acc.providerId === "slack")
-            : null;
-        githubAccount = accounts
-            ? accounts.find((acc: any) => acc.providerId === "github")
-            : null;
-
-        slackAccessToken = (
-            await auth.api.getAccessToken({
+    // 3. Fetch Slack profile via OIDC userinfo endpoint
+    if (slackAccount) {
+        const { accessToken: slackAccessToken } = await auth.api.getAccessToken(
+            {
                 headers: Astro.request.headers,
                 body: { providerId: "slack", accountId: slackAccount.id },
-            })
-        ).accessToken;
+            }
+        );
 
-        slackInfo = await auth.api.accountInfo({
-            headers: Astro.request.headers,
-            body: { accountId: slackAccount.accountId },
-        });
-
-        if (!githubAccount) {
-            console.log("No GitHub account linked");
-        } else {
-            githubInfo = await auth.api.accountInfo({
-                headers: Astro.request.headers,
-                body: { accountId: githubAccount.accountId },
-            });
-            githubAccessToken = (
-                await auth.api.getAccessToken({
-                    headers: Astro.request.headers,
-                    body: { providerId: "github", accountId: githubAccount.id },
-                })
-            ).accessToken;
+        if (slackAccessToken) {
+            const slackRes = await fetch(
+                "https://slack.com/api/openid.connect.userInfo",
+                {
+                    headers: { Authorization: `Bearer ${slackAccessToken}` },
+                }
+            );
+            const slackJson = await slackRes.json();
+            if (slackJson.ok === false) {
+                console.warn("Slack userInfo error:", slackJson);
+            } else {
+                slackProfile = slackJson;
+            }
         }
-        console.log("Slack info", slackInfo);
-        const res = await fetch("http://localhost:3000/api/account/info", {
-            headers: {
-                Authorization: `Bearer ${jwtToken}`,
-            },
-        });
-        const data = await res.json();
-        console.log("Protected response:", data);
+        console.log("Slack profile:", slackProfile.sub);
     }
-} catch (e) {
-    console.error("getSession failed", e);
-    errorMsg = "Failed to get session";
+
+    // 4. Fetch GitHub profile from GitHub API
+    if (githubAccount) {
+        const { accessToken: githubAccessToken } =
+            await auth.api.getAccessToken({
+                headers: Astro.request.headers,
+                body: { providerId: "github", accountId: githubAccount.id },
+            });
+
+        if (githubAccessToken) {
+            const ghRes = await fetch("https://api.github.com/user", {
+                headers: { Authorization: `Bearer ${githubAccessToken}` },
+            });
+            if (ghRes.ok) githubProfile = await ghRes.json();
+            else console.warn("GitHub user fetch failed:", await ghRes.text());
+        }
+        console.log("GitHub profile:", githubProfile);
+    }
+
+    // 5. Get JWT for backend API calls
+    const { token: string } = await auth.api.getToken({
+        headers: Astro.request.headers,
+    });
+    jwtToken = string;
+    console.log("Got JWT token", jwtToken);
+
+    // 6. Use JWT to call airtable
+    const apiRes = await fetch("http://localhost:3000/api/account/info", {
+        headers: { Authorization: `Bearer ${jwtToken}` },
+    });
+} catch (err) {
+    console.error("Dashboard load failed:", err);
+    errorMsg = err.message || "Unknown error loading dashboard";
 }
-
-/* list of data we actually need to display from oauth providers:
-
-slack:
-- display name
-- profile picture
-
-github:
-- username
-- repositories
-
-list of stuff from airtable:
-- project statuses
-- account statuses
-
-Extracted the account access tokens, the rest should just be a simple API call
-
-still need to figure out how to do that fuck ass JWT handshake, but it shouldn't be too hard to figure out.
-
-*/
 ---
 
-<!-- TODO: dynamically edit website depending on session states -->
 <Base>
     {
-        errorMsg ? (
-            <div class="text-red-500 text-center mt-10">{errorMsg}</div>
-        ) : session && userId ? (
-            <div class="max-w-2xl mx-auto mt-10 p-6 bg-white/10 backdrop-blur rounded-2xl shadow-lg text-center text-white">
-                <h1 class="text-2xl font-bold mb-6">Dashboard</h1>
+        session ? (
+            <div class="p-6 space-y-6">
+                <h1 class="text-2xl font-semibold">Dashboard</h1>
 
-                <div class="flex flex-col items-center gap-6">
-                    {slackInfo && (
-                        <div class="flex flex-col items-center">
-                            <img
-                                src={
-                                    slackInfo?.user?.image ||
-                                    "/default-avatar.png"
-                                }
-                                alt="Slack Profile"
-                                class="w-24 h-24 rounded-full border-4 border-white shadow"
-                            />
-                            <p class="mt-2 text-lg font-semibold">
-                                {slackInfo?.user?.real_name ||
-                                    "Unknown Slack User"}
-                            </p>
-                            <p class="text-sm text-gray-300">
-                                @{slackInfo?.user?.name}
-                            </p>
+                {errorMsg && <p class="text-red-500">{errorMsg}</p>}
+
+                <div class="grid gap-6 md:grid-cols-2">
+                    {slackProfile ? (
+                        <div class="p-4 border rounded-xl shadow-sm bg-white/5">
+                            <h2 class="text-xl font-medium mb-2">Slack</h2>
+                            <div class="flex items-center gap-4">
+                                <img
+                                    src={slackProfile.picture}
+                                    alt="Slack avatar"
+                                    class="w-16 h-16 rounded-full border"
+                                />
+                                <div>
+                                    <p class="font-semibold">
+                                        {slackProfile.name}
+                                    </p>
+                                    <p class="text-gray-400">
+                                        {slackProfile.email}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div class="p-4 border rounded-xl text-gray-400">
+                            No Slack account linked
                         </div>
                     )}
 
-                    {githubInfo && (
-                        <div class="flex flex-col items-center">
-                            <p class="text-lg font-semibold">
-                                GitHub: @{githubInfo?.user?.login ?? "Unknown"}
-                            </p>
+                    {githubProfile ? (
+                        <div class="p-4 border rounded-xl shadow-sm bg-white/5">
+                            <h2 class="text-xl font-medium mb-2">GitHub</h2>
+                            <div class="flex items-center gap-4">
+                                <img
+                                    src={githubProfile.avatar_url}
+                                    alt="GitHub avatar"
+                                    class="w-16 h-16 rounded-full border"
+                                />
+                                <div>
+                                    <p class="font-semibold">
+                                        {githubProfile.login}
+                                    </p>
+                                    <p class="text-gray-400">
+                                        {githubProfile.html_url}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div class="p-4 border rounded-xl text-gray-400">
+                            No GitHub account linked
                         </div>
                     )}
                 </div>
 
-                <div class="flex justify-center gap-4 mt-8">
+                <div class="flex gap-4 pt-6">
                     <button
                         id="logout"
-                        class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-medium"
+                        class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
                     >
                         Logout
                     </button>
-                    {!githubAccount ? (
-                        <button
-                            id="link-github"
-                            class="bg-gray-700 hover:bg-gray-800 px-4 py-2 rounded-lg font-medium"
-                        >
-                            Link GitHub
-                        </button>
-                    ) : (
-                        <button
-                            id="unlink-github"
-                            class="bg-gray-700 hover:bg-gray-800 px-4 py-2 rounded-lg font-medium"
-                        >
-                            Unlink GitHub
-                        </button>
-                    )}
+                    <button
+                        id="link-github"
+                        class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                    >
+                        Link GitHub
+                    </button>
+                    <button
+                        id="unlink-github"
+                        class="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+                    >
+                        Unlink GitHub
+                    </button>
                 </div>
             </div>
         ) : (
-            <div class="text-center mt-20 text-gray-300">
-                <p>Please sign in to view your dashboard.</p>
+            <div class="text-center py-20">
+                <p class="text-lg text-gray-300">
+                    Please sign in to view your dashboard.
+                </p>
             </div>
         )
     }
@@ -191,27 +183,34 @@ still need to figure out how to do that fuck ass JWT handshake, but it shouldn't
 <script>
     const { authClient } = await import("../../lib/auth-client");
 
-    document.querySelector("#logout")?.addEventListener("click", () => {
-        authClient.signOut({
-            fetchOptions: {
-                onSuccess: () => (window.location.href = "/"),
-            },
-        });
-    });
+    const logoutBtn = document.querySelector("#logout") as HTMLElement;
+    const linkBtn = document.querySelector("#link-github") as HTMLElement;
+    const unlinkBtn = document.querySelector("#unlink-github") as HTMLElement;
 
-    document.querySelector("#link-github")?.addEventListener("click", () => {
-        authClient.linkSocial({
-            provider: "github",
-            callbackURL: "/dashboard",
-        });
-    });
+    if (logoutBtn) {
+        logoutBtn.onclick = () =>
+            authClient.signOut({
+                fetchOptions: {
+                    onSuccess: () => (window.location.href = "/"),
+                },
+            });
+    }
 
-    document.querySelector("#unlink-github")?.addEventListener("click", () => {
-        authClient.unlinkAccount({
-            providerId: "github",
-            fetchOptions: {
-                onSuccess: () => window.location.reload(),
-            },
-        });
-    });
+    if (linkBtn) {
+        linkBtn.onclick = () =>
+            authClient.linkSocial({
+                provider: "github",
+                callbackURL: "/dashboard",
+            });
+    }
+
+    if (unlinkBtn) {
+        unlinkBtn.onclick = () =>
+            authClient.unlinkAccount({
+                providerId: "github",
+                fetchOptions: {
+                    onSuccess: () => window.location.reload(),
+                },
+            });
+    }
 </script>
