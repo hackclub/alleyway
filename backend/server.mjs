@@ -4,6 +4,8 @@ import { jwtVerify, createRemoteJWKSet } from "jose";
 import cors from "cors";
 import dotenv from "dotenv";
 import cron from "node-cron";
+import { webcrypto } from "crypto";
+if (!globalThis.crypto) globalThis.crypto = webcrypto;
 
 dotenv.config();
 const app = express();
