@@ -1,6 +1,5 @@
 ---
-import Base from "@layouts/Base.astro";
-import DocsBar from "@components/DocsBar.astro";
+import Docs from "@layouts/Docs.astro";
 // Generate a page for every markdown file under src/docs/pub
 
 type DocModule = {
@@ -10,7 +9,7 @@ type DocModule = {
 };
 
 export async function getStaticPaths() {
-    const docs: DocModule[] = await Astro.glob("../../docs/pub/**/*.md");
+    const docs: DocModule[] = await Astro.glob("../../docs/pub/**/*.md*");
 
     return docs.map((doc) => {
         const normalized = doc.file.replace(/\\/g, "/");
@@ -27,16 +26,10 @@ export async function getStaticPaths() {
 
 const { doc } = Astro.props as { doc: DocModule };
 const { default: Content, frontmatter } = doc;
+
+console.log("Rendering doc:", frontmatter?.title, "from", doc.file);
 ---
 
-<Base>
-    <div
-        class="mx-auto max-w-7xl px-4 py-8 grid grid-cols-1 md:grid-cols-[16rem_1fr] gap-8"
-    >
-        <DocsBar currentSlug={Astro.params.page} />
-        <article class="prose prose-invert max-w-none">
-            {frontmatter?.title ? <h1>{frontmatter.title}</h1> : null}
-            <Content />
-        </article>
-    </div>
-</Base>
+<Docs>
+    <Content />
+</Docs>

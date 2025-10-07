@@ -9,83 +9,109 @@ let slackProfile = null;
 let githubProfile = null;
 let errorMsg = null;
 let jwtToken = null;
+let backendUser = null;
 
 try {
     // 1. Get user session
     session = await auth.api.getSession({ headers: Astro.request.headers });
     const userId = session?.session?.userId;
-
-    if (!userId) {
-        throw new Error("No active session");
-    }
+    if (!userId) throw new Error("No active session");
 
     // 2. List connected accounts
     const accounts = await auth.api.listUserAccounts({
         headers: Astro.request.headers,
     });
 
-    // Find Slack & GitHub accounts
     const slackAccount = accounts.find((a) => a.providerId === "slack");
     const githubAccount = accounts.find((a) => a.providerId === "github");
 
-    // 3. Fetch Slack profile via OIDC userinfo endpoint
+    // 3. Fetch Slack OIDC profile
     if (slackAccount) {
-        const { accessToken: slackAccessToken } = await auth.api.getAccessToken(
+        const { accessToken } = await auth.api.getAccessToken({
+            headers: Astro.request.headers,
+            body: { providerId: "slack", accountId: slackAccount.id },
+        });
+
+        if (accessToken) {
+            const res = await fetch(
+                "https://slack.com/api/openid.connect.userInfo",
+                {
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                }
+            );
+            const data = await res.json();
+            if (!data.ok) console.warn("Slack error:", data);
+            else slackProfile = data;
+        }
+    }
+
+    // 4. Fetch GitHub profile
+    if (githubAccount) {
+        const { accessToken } = await auth.api.getAccessToken({
+            headers: Astro.request.headers,
+            body: { providerId: "github", accountId: githubAccount.id },
+        });
+        if (accessToken) {
+            const res = await fetch("https://api.github.com/user", {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (res.ok) githubProfile = await res.json();
+        }
+    }
+
+    // 5. Get JWT for backend calls
+    const { token } = await auth.api.getToken({
+        headers: Astro.request.headers,
+    });
+    jwtToken = token;
+
+    // 6. Try to fetch user info from backend
+    const slackId = slackProfile?.sub;
+    const userEmail = session.user?.email;
+
+    if (slackId) {
+        const res = await fetch(
+            "https://alley.a.selfhosted.hackclub.com/api/account/info",
             {
-                headers: Astro.request.headers,
-                body: { providerId: "slack", accountId: slackAccount.id },
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${jwtToken}`,
+                },
+                body: JSON.stringify({ slackId }),
             }
         );
 
-        if (slackAccessToken) {
-            const slackRes = await fetch(
-                "https://slack.com/api/openid.connect.userInfo",
+        if (res.status === 404) {
+            console.warn("User not found. Creating account...");
+            const createRes = await fetch(
+                "https://alley.a.selfhosted.hackclub.com/api/account/create",
                 {
-                    headers: { Authorization: `Bearer ${slackAccessToken}` },
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${jwtToken}`,
+                    },
+                    body: JSON.stringify({ slackId, userId, userEmail }),
                 }
             );
-            const slackJson = await slackRes.json();
-            if (slackJson.ok === false) {
-                console.warn("Slack userInfo error:", slackJson);
-            } else {
-                slackProfile = slackJson;
+
+            if (!createRes.ok) {
+                console.error(
+                    "Failed to create account:",
+                    await createRes.text()
+                );
+                throw new Error("Account creation failed");
             }
+
+            console.log("Created new user account.");
+        } else if (res.ok) {
+            const data = await res.json();
+            backendUser = data.userInfo;
+        } else {
+            console.warn("Account info fetch failed:", await res.text());
         }
-        console.log("Slack profile:", slackProfile.sub);
     }
-
-    // 4. Fetch GitHub profile from GitHub API
-    if (githubAccount) {
-        const { accessToken: githubAccessToken } =
-            await auth.api.getAccessToken({
-                headers: Astro.request.headers,
-                body: { providerId: "github", accountId: githubAccount.id },
-            });
-
-        if (githubAccessToken) {
-            const ghRes = await fetch("https://api.github.com/user", {
-                headers: { Authorization: `Bearer ${githubAccessToken}` },
-            });
-            if (ghRes.ok) githubProfile = await ghRes.json();
-            else console.warn("GitHub user fetch failed:", await ghRes.text());
-        }
-        console.log("GitHub profile:", githubProfile);
-    }
-
-    // 5. Get JWT for backend API calls
-    const { token: string } = await auth.api.getToken({
-        headers: Astro.request.headers,
-    });
-    jwtToken = string;
-    console.log("Got JWT token", jwtToken);
-
-    // 6. Use JWT to call airtable
-    const apiRes = await fetch(
-        "https://alley.a.selfhosted.hackclub.com/api/account/info",
-        {
-            headers: { Authorization: `Bearer ${jwtToken}` },
-        }
-    );
 } catch (err) {
     console.error("Dashboard load failed:", err);
     errorMsg = err.message || "Unknown error loading dashboard";
@@ -97,6 +123,9 @@ try {
         session ? (
             <div class="p-6 space-y-6">
                 <h1 class="text-2xl font-semibold">Dashboard</h1>
+                <h2 class="text-lg font-medium">
+                    Dashboard only refreshes every minute; please be patient!!!
+                </h2>
 
                 {errorMsg && <p class="text-red-500">{errorMsg}</p>}
 
@@ -152,6 +181,78 @@ try {
                     )}
                 </div>
 
+                {backendUser && (
+                    <div class="space-y-6">
+                        <div class="p-4 border rounded-xl bg-white/5">
+                            <h2 class="text-xl font-medium mb-3">User Info</h2>
+                            <div class="space-y-1 text-gray-200">
+                                <p>
+                                    <span class="font-semibold">
+                                        IDV Status:
+                                    </span>{" "}
+                                    {backendUser.idv_status}
+                                </p>
+                                <p>
+                                    <span class="font-semibold">
+                                        PII Exists:
+                                    </span>{" "}
+                                    {backendUser["PII_exists?"] ? "Yes" : "No"}
+                                </p>
+                            </div>
+                        </div>
+
+                        {backendUser.Projects?.length ? (
+                            <div>
+                                <h2 class="text-xl font-medium mb-3">
+                                    Projects
+                                </h2>
+                                <div class="grid gap-4 md:grid-cols-2">
+                                    {backendUser.Projects.map((p) => (
+                                        <div class="p-4 border rounded-xl bg-white/5">
+                                            <h3 class="text-lg font-semibold mb-2">
+                                                {p.Description}
+                                            </h3>
+                                            <p class="text-gray-400 mb-1">
+                                                <a
+                                                    href={p.github_url}
+                                                    target="_blank"
+                                                >
+                                                    {p.github_url}
+                                                </a>
+                                            </p>
+                                            <p>
+                                                <span class="font-semibold">
+                                                    Status:
+                                                </span>{" "}
+                                                {p.status}
+                                            </p>
+                                            <p>
+                                                <span class="font-semibold">
+                                                    Hours:
+                                                </span>{" "}
+                                                {p.hours}
+                                            </p>
+                                            <p>
+                                                <span class="font-semibold">
+                                                    Slack Msg:
+                                                </span>{" "}
+                                                <a
+                                                    href={p.slack_message_url}
+                                                    target="_blank"
+                                                >
+                                                    View
+                                                </a>
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div class="text-gray-400">No projects found.</div>
+                        )}
+                    </div>
+                )}
+
                 <div class="flex gap-4 pt-6">
                     <button
                         id="logout"
@@ -186,16 +287,14 @@ try {
 <script>
     const { authClient } = await import("../../lib/auth-client");
 
-    const logoutBtn = document.querySelector("#logout") as HTMLElement;
-    const linkBtn = document.querySelector("#link-github") as HTMLElement;
-    const unlinkBtn = document.querySelector("#unlink-github") as HTMLElement;
+    const logoutBtn = document.querySelector("#logout");
+    const linkBtn = document.querySelector("#link-github");
+    const unlinkBtn = document.querySelector("#unlink-github");
 
     if (logoutBtn) {
         logoutBtn.onclick = () =>
             authClient.signOut({
-                fetchOptions: {
-                    onSuccess: () => (window.location.href = "/"),
-                },
+                fetchOptions: { onSuccess: () => (window.location.href = "/") },
             });
     }
 
@@ -211,9 +310,7 @@ try {
         unlinkBtn.onclick = () =>
             authClient.unlinkAccount({
                 providerId: "github",
-                fetchOptions: {
-                    onSuccess: () => window.location.reload(),
-                },
+                fetchOptions: { onSuccess: () => window.location.reload() },
             });
     }
 </script>
