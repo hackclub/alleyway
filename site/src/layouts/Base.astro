@@ -10,7 +10,9 @@ import NavBar from "../components/NavBar.astro";
         <title>The Alley</title>
     </head>
     <body>
-        <NavBar />
-        <slot />
+        <div class="bg-gray-900 text-white min-h-screen">
+            <NavBar />
+            <slot />
+        </div>
     </body>
 </html>

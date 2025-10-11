@@ -28,6 +28,8 @@ const { doc } = Astro.props as { doc: DocModule };
 const { default: Content, frontmatter } = doc;
 
 console.log("Rendering doc:", frontmatter?.title, "from", doc.file);
+
+export const prerender = true;
 ---
 
 <Docs>
